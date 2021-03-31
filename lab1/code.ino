@@ -11,7 +11,7 @@ int ldr_2_val;
 int baixa_luminosidade = 20;
 int limite = 50;
 
-bool status = false;
+bool status = true;
 bool monitoring = false;
 int state_before = 0;
 
