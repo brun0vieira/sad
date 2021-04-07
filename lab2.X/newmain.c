@@ -1,3 +1,5 @@
+// Authors: Bruno Vieira, Francisco Róis and Nikita Dyskin
+
 #include <xc.h>
 #pragma config FOSC = HS // Oscillator Selection bits (HS oscillator)
 #pragma config WDTE = OFF // Watchdog Timer Enable bit
@@ -7,7 +9,7 @@
 #pragma config CPD = OFF // Data EEPROM Memory Code Protection bit
 #pragma config WRT = OFF // Flash Program Memory Write Enable bits
 #pragma config CP = OFF // Flash Program Memory Code Protection bit
-//cenas bacanas
+
 int main(void)
 {
     TRISBbits.TRISB3 = 1;
