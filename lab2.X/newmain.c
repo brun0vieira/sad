@@ -1,3 +1,5 @@
+// Authors: Bruno Vieira, Francisco Róis and Nikita Dyskin
+
 #include <xc.h>
 #pragma config FOSC = HS // Oscillator Selection bits (HS oscillator)
 #pragma config WDTE = OFF // Watchdog Timer Enable bit
