@@ -25,6 +25,8 @@ void adc_init();
 void usart_init();
 void usart_read_char();
 void usart_read_string();
+void usart_write_char();
+void usart_write_string();
 
 void configPorts() 
 {
@@ -119,9 +121,9 @@ void delay(int t)
 
 void adc_init()
 {
-    ADCON0=0;
-    ADCON1=0;
-    
+    ADCON0=0; // a/d control register 0 - controls the operation of the a/d module
+    ADCON1=0; // a/d control register 1 - configures the functions of the port pins
+    ADCON0bits.ADON = 1; // turns on AD module
 }
 
 void usart_init()
@@ -164,7 +166,22 @@ void usart_read_string()
     text[i]='\0';
 }
 
+void usart_write_char(char c)
+{
+    for(;;)
+        if(TXIF) // checks if TXREG is the buffer is empty (1) or full (0)
+            break;
 
+    TXREG=c;
+}
+
+void usart_write_string(char *text)
+{
+    int i;
+    
+    for(i=0; text[i]!='\0'; i++)
+        usart_write_char(text[i]);   
+}
 
 int main(void)
 {
