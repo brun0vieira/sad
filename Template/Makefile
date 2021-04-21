@@ -1,0 +1,23 @@
+# MPLAB IDE generated this makefile for use with GNU make.
+# Project: Template.mcp
+# Date: Wed Apr 21 16:18:52 2021
+
+AS = pic30-as.exe
+CC = pic30-gcc.exe
+LD = pic30-ld.exe
+AR = pic30-ar.exe
+HX = pic30-bin2hex.exe
+RM = rm
+
+Template.hex : Template.cof
+	$(HX) "Template.cof"
+
+Template.cof : main.o
+	$(CC) -mcpu=24FJ128GA010 "main.o" -o"Template.cof" -Wl,-L"C:\Program Files (x86)\Microchip\MPLAB C30\lib",--script="p24FJ128GA010.gld",--defsym=__MPLAB_BUILD=1,-Map="Template.map",--report-mem
+
+main.o : ../../../../../../program\ files\ (x86)/microchip/mplab\ c30/include/string.h ../../../../../../program\ files\ (x86)/microchip/mplab\ c30/include/yvals.h ../../../../../../program\ files\ (x86)/microchip/mplab\ c30/include/stdio.h ../../../../../../program\ files\ (x86)/microchip/mplab\ c30/support/h/p24FJ128GA010.h ../../../../../../program\ files\ (x86)/microchip/mplab\ c30/support/h/p24fxxxx.h main.c
+	$(CC) -mcpu=24FJ128GA010 -x c -c "main.c" -o"main.o" -g -Wall
+
+clean : 
+	$(RM) "main.o" "Template.cof" "Template.hex"
+
