@@ -18,7 +18,12 @@ int changeMode(int state);
 void delay(int t);
 void moveRight();
 void moveLeft();
-void stop();
+void stopMotor();
+void usart_init();
+char usart_read_char();
+void usart_read_string();
+void usart_write_char(char c);
+void usart_write_string();
 
 void configPorts() {
 	TRISDbits.TRISD6 = 1; // Button to change mode (Standby and normal)
@@ -75,6 +80,59 @@ void stopMotor()
 {
 	LATAbits.LATA0 = 0;
 	LATAbits.LATA1 = 0;
+}
+
+void usart_init()
+{
+	U2BRG = 25; // BaudRate = 9600 bits/s 4MHz (Page 11 Datasheet)
+	U2MODE = 0x8000; // 8-bit data - no parity, 1 STOP bit
+	U2STA = 0;  
+	U2STAbits.UTXEN = 1; // Enable transmit
+	//IFSxbits.UxRXIF ??
+	//UxTXIE ??
+	//UxRXIE ??
+}
+
+char usart_read_char()
+{
+	// waits until the buffer is empty
+	while(!U2STAbits.URXDA) // URXDA = 0 when receive buffer is empt
+		;
+	// then we can read the char
+	return U2RXREG;
+}
+
+void usart_read_string()
+{
+	int i=0;
+	char *text;
+
+	do
+	{
+		text[i] = usart_read_char();
+		i++;	
+	}
+	while(text[i]!='\0' && text[i]!='\r' && text[i]!='\r');
+
+	text[i]='\0';
+}
+
+void usart_write_char(char c)
+{
+	while(U2STAbits.UTXBF)
+		;
+	U2TXREG=c;
+}
+
+void usart_write_string(char *text)
+{
+	int i=0;
+	
+	while(text[i] != '\0')
+	{
+		usart_write_char(text[i]);
+		i++;
+	}
 }
 
 int main(void)
