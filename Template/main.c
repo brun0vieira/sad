@@ -21,9 +21,10 @@ void moveLeft();
 void stopMotor();
 void usart_init();
 char usart_read_char();
-void usart_read_string();
+char* usart_read_string();
 void usart_write_char(char c);
 void usart_write_string();
+void adc_init();
 
 void configPorts() {
 	TRISDbits.TRISD6 = 1; // Button to change mode (Standby and normal)
@@ -102,7 +103,7 @@ char usart_read_char()
 	return U2RXREG;
 }
 
-void usart_read_string()
+char* usart_read_string()
 {
 	int i=0;
 	char *text;
@@ -112,9 +113,10 @@ void usart_read_string()
 		text[i] = usart_read_char();
 		i++;	
 	}
-	while(text[i]!='\0' && text[i]!='\r' && text[i]!='\r');
+	while(text[i]!='\0' && text[i]!='\r' && text[i]!='\n');
 
 	text[i]='\0';
+	return text;
 }
 
 void usart_write_char(char c)
@@ -135,11 +137,27 @@ void usart_write_string(char *text)
 	}
 }
 
+void adc_init()
+{
+	
+	// 15 bits to configure: AN2 and AN3 analog input 
+	// 1111111111110011 -> fff3
+	AD1PCFG = 0xFFF3; // configure a/d port 
+	AD1CON1 = 0; // a/d control register 1  		
+	AD1CON2 = 0; // a/d control register 2
+	AD1CON3 = 0; // a/d control register 3
+	AD1CSSL = 0; // Use the channel selected by the CH0SA bits (no scan)
+	AD1CON1bits.ADON = 1; // turns ADC ON
+}
+
+
 int main(void)
 {	
 	int state = 0;
 	configPorts();
-	
+	//usart_init();
+	//char *str;
+
 	while(1)
 	{
 		delay(20);
@@ -153,6 +171,9 @@ int main(void)
 				moveLeft();
 			if(!PORTAbits.RA7)
 				moveRight();
-		}			
+			/*str = usart_read_string();
+			usart_write_string(str);*/
+		}
+					
 	}
 }
