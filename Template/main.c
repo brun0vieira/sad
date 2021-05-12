@@ -25,6 +25,8 @@ char* usart_read_string();
 void usart_write_char(char c);
 void usart_write_string();
 void adc_init();
+int adc_read(int channel);
+int solar_tracker(int ldr_1, int ldr_2, int state);
 
 void configPorts() {
 	TRISDbits.TRISD6 = 1; // Button to change mode (Standby and normal)
@@ -55,7 +57,8 @@ int changeMode(int state) // check debounce
 		setNormal();
 	else
 		setStandby();
-
+	
+	usart_write_string("Mudou de modo");
 	return state;
 }
 
@@ -139,7 +142,6 @@ void usart_write_string(char *text)
 
 void adc_init()
 {
-	
 	// 15 bits to configure: AN2 and AN3 analog input 
 	// 1111111111110011 -> fff3
 	AD1PCFG = 0xFFF3; // configure a/d port 
@@ -150,13 +152,75 @@ void adc_init()
 	AD1CON1bits.ADON = 1; // turns ADC ON
 }
 
+int adc_read(int channel)
+{
+	AD1CHS = channel; // A/D input channel select register
+	AD1CON1bits.SAMP = 1; // Sampling begins
+	// delay
+	delay(2000);
+	AD1CON1bits.SAMP = 0; // Sampling ends
+	
+	for(;;)
+	{
+		if(AD1CON1bits.DONE) // w8s until the conversion is completed
+			break;
+	}
+	return ADC1BUF0;
+}
+
+int solar_tracker(int ldr_1, int ldr_2, int state)
+{
+	if(ldr_1 < 20 && ldr_2 < 20) // noite - atribuir o 20 a uma variavel
+		stopMotor();
+	else if(ldr_1 - ldr_2 > 100) // if there's a noticable difference then it rotates 
+	{
+		moveLeft();
+		delay(2000);
+		
+		while(ldr_1 - ldr_2 > 100 && state==1)
+		{	
+			ldr_1 = adc_read(2); // left
+			ldr_2 = adc_read(3); // right
+			if(!PORTDbits.RD6) {
+            	state = changeMode(state);
+				stopMotor();	
+				break;
+			}
+		}
+	}
+	else if(ldr_2 - ldr_1 > 100)
+	{
+		delay(2000);
+		moveRight();
+		
+		while(ldr_2 - ldr_1 > 100 && state==1)
+		{
+			ldr_1 = adc_read(2); // left
+			ldr_2 = adc_read(3); // right
+			if(!PORTDbits.RD6) {
+            	state = changeMode(state);
+				stopMotor();	
+				break;
+			}
+		}
+	}
+	else
+	{
+		stopMotor();
+		delay(2000);
+	}
+	return state;	
+}
 
 int main(void)
 {	
 	int state = 0;
 	configPorts();
-	//usart_init();
-	//char *str;
+	usart_init();
+	adc_init();
+	int ldr_1, ldr_2;
+	ldr_1 = ldr_2 = 0;
+	char str[100];
 
 	while(1)
 	{
@@ -167,12 +231,30 @@ int main(void)
         }
 		if(state)
 		{
+			/*
 			if(!PORTDbits.RD7)
 				moveLeft();
 			if(!PORTAbits.RA7)
 				moveRight();
-			/*str = usart_read_string();
-			usart_write_string(str);*/
+			//str = usart_read_string();
+			ldr_2 = adc_read(2);
+			ldr_3 = adc_read(3);
+			sprintf(str, "AN2: %d\n",ldr_2);
+			usart_write_string(str);
+			sprintf(str, "AN3: %d\n\n",ldr_3);
+			usart_write_string(str);
+			delay(2000);
+			*/
+ 
+			ldr_1 = adc_read(2); // left
+			ldr_2 = adc_read(3); // right
+			//temp = adc_read(4);
+			sprintf(str, "AN2: %d\n",ldr_1);
+			usart_write_string(str);
+			sprintf(str, "AN3: %d\n\n",ldr_2);
+			usart_write_string(str);
+			state = solar_tracker(ldr_1, ldr_2, state);/*temp*/
+	
 		}
 					
 	}
