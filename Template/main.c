@@ -11,6 +11,8 @@ _CONFIG1( JTAGEN_OFF & GCP_OFF & GWRP_OFF & COE_OFF & FWDTEN_OFF & ICS_PGx2)
 _CONFIG2( FCKSM_CSDCMD & OSCIOFNC_OFF & POSCMOD_HS & FNOSC_PRI)
 #endif
 
+#define MAX_TEMPERATURE 245
+
 void configPorts();
 void setNormal();
 void setStandby();
@@ -26,7 +28,19 @@ void usart_write_char(char c);
 void usart_write_string();
 void adc_init();
 int adc_read(int channel);
-int solar_tracker(int ldr_1, int ldr_2, int state);
+int solar_tracker(int ldr_1, int ldr_2, int state, int temperature);
+void check_temperature(int temperature);
+void debounce();
+void print_aqc2_status(int ldr_1, int ldr_2, int temperature, int state);
+
+/*
+	<AQC2>
+		<ldr1> value </ldr1>
+		<ldr2> value </ldr2>
+		<temperature> value </temperature>
+		<state> value </state>
+	</AQC2>
+*/
 
 void configPorts() {
 	TRISDbits.TRISD6 = 1; // Button to change mode (Standby and normal)
@@ -41,12 +55,14 @@ void configPorts() {
 void setNormal() 
 {
 	PORTAbits.RA6 = 1;
+	usart_write_string("\n<Aviso>\n	<Mensagem>Modo normal ativado.</Mensagem>\n</Aviso>");
 }
 
 void setStandby() 
 {
 	stopMotor();
 	PORTAbits.RA6 = 0;
+	usart_write_string("\n<Aviso>\n	<Mensagem>Modo standby ativado.</Mensagem>\n</Aviso>");
 }
 
 int changeMode(int state) // check debounce 
@@ -57,8 +73,7 @@ int changeMode(int state) // check debounce
 		setNormal();
 	else
 		setStandby();
-	
-	usart_write_string("Mudou de modo");
+
 	return state;
 }
 
@@ -142,9 +157,9 @@ void usart_write_string(char *text)
 
 void adc_init()
 {
-	// 15 bits to configure: AN2 and AN3 analog input 
-	// 1111111111110011 -> fff3
-	AD1PCFG = 0xFFF3; // configure a/d port 
+	// 15 bits to configure: AN2 and AN3 analog input
+	// binary: 1111111111100011 -> hex: ffe3
+	AD1PCFG = 0xFFE3; // configure a/d port 
 	AD1CON1 = 0; // a/d control register 1  		
 	AD1CON2 = 0; // a/d control register 2
 	AD1CON3 = 0; // a/d control register 3
@@ -168,41 +183,57 @@ int adc_read(int channel)
 	return ADC1BUF0;
 }
 
-int solar_tracker(int ldr_1, int ldr_2, int state)
+int solar_tracker(int ldr_1, int ldr_2, int state, int temperature)
 {
 	if(ldr_1 < 20 && ldr_2 < 20) // noite - atribuir o 20 a uma variavel
+	{
 		stopMotor();
+		usart_write_string("\n<Aviso>\n	<Mensagem>Motor a parar.</Mensagem>\n</Aviso>");
+	}
 	else if(ldr_1 - ldr_2 > 100) // if there's a noticable difference then it rotates 
 	{
 		moveLeft();
+		usart_write_string("\n<Aviso>\n	<Mensagem>Motor a rodar para a esquerda.</Mensagem>\n</Aviso>");
 		delay(2000);
 		
 		while(ldr_1 - ldr_2 > 100 && state==1)
 		{	
 			ldr_1 = adc_read(2); // left
 			ldr_2 = adc_read(3); // right
-			if(!PORTDbits.RD6) {
-            	state = changeMode(state);
-				stopMotor();	
+			print_aqc2_status(ldr_1,ldr_2,temperature,state);
+		
+			if(!PORTDbits.RD6)
+			{
+				debounce();
+				
+				state = changeMode(state);
+				stopMotor();
 				break;
 			}
 		}
+		usart_write_string("\n<Aviso>\n	<Mensagem>Seguidor solar bem posicionado. Motor a parar.</Mensagem>\n</Aviso>");
 	}
 	else if(ldr_2 - ldr_1 > 100)
 	{
-		delay(2000);
 		moveRight();
-		
+		usart_write_string("\n<Aviso>\n	<Mensagem>Motor a rodar para a direita.</Mensagem>\n</Aviso>");
+		delay(2000);
 		while(ldr_2 - ldr_1 > 100 && state==1)
 		{
 			ldr_1 = adc_read(2); // left
 			ldr_2 = adc_read(3); // right
-			if(!PORTDbits.RD6) {
-            	state = changeMode(state);
-				stopMotor();	
+			print_aqc2_status(ldr_1,ldr_2,temperature,state);
+
+			if(!PORTDbits.RD6)
+			{
+				debounce();
+				
+				state = changeMode(state);
+				stopMotor();
 				break;
 			}
 		}
+		usart_write_string("\n<Aviso>\n	<Mensagem>Seguidor solar bem posicionado. Motor a parar.</Mensagem>\n</Aviso>");
 	}
 	else
 	{
@@ -212,49 +243,53 @@ int solar_tracker(int ldr_1, int ldr_2, int state)
 	return state;	
 }
 
+void check_temperature(int temperature)
+{
+	if(temperature>=MAX_TEMPERATURE)
+	{
+		usart_write_string("\n<Aviso>\n	<Mensagem>Temperatura acima do recomendado. Motor a parar.</Mensagem>\n</Aviso>");
+		stopMotor();
+		
+	}
+}
+
+void debounce()
+{
+	while(!PORTDbits.RD6)
+		delay(1000);
+}
+
+void print_aqc2_status(int ldr_1, int ldr_2, int temperature, int state)
+{
+	char str[150];
+	sprintf(str,"\n<AQC2>\n	<ldr1> %d </ldr1>\n	<ldr2> %d </ldr2>\n	<temperature> %d </temperature>\n	<state> %d </state>\n</AQC2>",ldr_1,ldr_2,temperature,state);
+	usart_write_string(str);
+}
+
 int main(void)
 {	
 	int state = 0;
 	configPorts();
 	usart_init();
 	adc_init();
-	int ldr_1, ldr_2;
+	int ldr_1, ldr_2, temperature;
 	ldr_1 = ldr_2 = 0;
-	char str[100];
 
 	while(1)
 	{
 		delay(20);
 		if(!PORTDbits.RD6)
-        {
-            state = changeMode(state);
-        }
+		{
+			debounce();
+			state = changeMode(state);
+		}
 		if(state)
 		{
-			/*
-			if(!PORTDbits.RD7)
-				moveLeft();
-			if(!PORTAbits.RA7)
-				moveRight();
-			//str = usart_read_string();
-			ldr_2 = adc_read(2);
-			ldr_3 = adc_read(3);
-			sprintf(str, "AN2: %d\n",ldr_2);
-			usart_write_string(str);
-			sprintf(str, "AN3: %d\n\n",ldr_3);
-			usart_write_string(str);
-			delay(2000);
-			*/
- 
 			ldr_1 = adc_read(2); // left
 			ldr_2 = adc_read(3); // right
-			//temp = adc_read(4);
-			sprintf(str, "AN2: %d\n",ldr_1);
-			usart_write_string(str);
-			sprintf(str, "AN3: %d\n\n",ldr_2);
-			usart_write_string(str);
-			state = solar_tracker(ldr_1, ldr_2, state);/*temp*/
-	
+			temperature = adc_read(4);
+			print_aqc2_status(ldr_1,ldr_2,temperature,state);
+			state = solar_tracker(ldr_1, ldr_2, state, temperature);
 		}
 					
 	}
