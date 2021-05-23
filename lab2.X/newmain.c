@@ -12,7 +12,7 @@
 #pragma config WRT = OFF // Flash Program Memory Write Enable bits
 #pragma config CP = OFF // Flash Program Memory Code Protection bit
 
-#define MAX_TEMPERATURE 245
+#define MAX_TEMPERATURE 40
 
 void configPorts();
 void moveLeft();
@@ -30,9 +30,9 @@ char* usart_read_string();
 void usart_write_char(char c);
 void usart_write_string(char *text);
 void debounce(int port);
-int solar_tracker(int ldr_1, int ldr_2, int state, int temperature);
+int solar_tracker(int ldr_1, int ldr_2, int temperature, int state);
 void print_aqc1_status(int ldr_1, int ldr_2, int temperature, int state);
-void check_temperature(int temperature);
+int check_temperature(int temperature);
 void change_heater_state();
 void change_cooler_state();
 
@@ -57,9 +57,9 @@ void configPorts()
     TRISBbits.TRISB6 = 0;
     TRISBbits.TRISB7 = 0;
     
-    TRISAbits.TRISA0 = 1;
-    TRISAbits.TRISA1 = 1;
-    TRISEbits.TRISE0 = 1;
+    TRISAbits.TRISA0 = 1; // ldr_1
+    TRISAbits.TRISA1 = 1; // ldr_2
+    TRISAbits.TRISA2 = 1; // temp
     TRISCbits.TRISC5 = 0; // heater
     TRISCbits.TRISC2 = 0; // cooler
     
@@ -231,10 +231,17 @@ void debounce(int port)
 
 int solar_tracker(int ldr_1, int ldr_2, int temperature, int state)
 {
+    int max_temp_reached = 0;
+    max_temp_reached = check_temperature(temperature);
+    
     if(ldr_1 < 20 && ldr_2 < 20)
     {
         stopMotor();
         usart_write_string("\n<Aviso>\n	<Mensagem>Motor a parar.</Mensagem>\n</Aviso>");
+    }
+    else if(max_temp_reached) 
+    {
+        // doesnt do anything - as supposed
     }
     else if(ldr_1 - ldr_2 > 100)
     {
@@ -246,7 +253,8 @@ int solar_tracker(int ldr_1, int ldr_2, int temperature, int state)
         {
             ldr_1 = adc_read(0);
             ldr_2 = adc_read(1);
-            temperature = adc_read(4); 
+            temperature = adc_read(2)/2;
+            max_temp_reached = check_temperature(temperature);
             print_aqc1_status(ldr_1,ldr_2,temperature,state);
             
             if(!PORTBbits.RB3)
@@ -267,8 +275,15 @@ int solar_tracker(int ldr_1, int ldr_2, int temperature, int state)
                 debounce(5);
                 change_cooler_state();
             }
+            else if(max_temp_reached)
+            {
+                usart_write_string("\n<Aviso>\n	<Mensagem>Temperatura acima do recomendado. Motor a parar.</Mensagem>\n</Aviso>");
+                stopMotor();
+                break;
+            }
         }
-        usart_write_string("\n<Aviso>\n	<Mensagem>Seguidor solar bem posicionado. Motor a parar.</Mensagem>\n</Aviso>");
+        if(!max_temp_reached)
+            usart_write_string("\n<Aviso>\n	<Mensagem>Seguidor solar bem posicionado. Motor a parar.</Mensagem>\n</Aviso>");
     }
     else if(ldr_2 - ldr_1 > 100)
     {
@@ -280,7 +295,8 @@ int solar_tracker(int ldr_1, int ldr_2, int temperature, int state)
         {
             ldr_1 = adc_read(0);
             ldr_2 = adc_read(1);
-            temperature = adc_read(4);
+            temperature = adc_read(2)/2;
+            max_temp_reached = check_temperature(temperature);
             print_aqc1_status(ldr_1,ldr_2,temperature,state);
             
             if(!PORTBbits.RB3)
@@ -301,8 +317,15 @@ int solar_tracker(int ldr_1, int ldr_2, int temperature, int state)
                 debounce(5);
                 change_cooler_state();
             }
+            else if(max_temp_reached)
+            {
+                usart_write_string("\n<Aviso>\n	<Mensagem>Temperatura acima do recomendado. Motor a parar.</Mensagem>\n</Aviso>");
+                stopMotor();
+                break;
+            }
         }
-        usart_write_string("\n<Aviso>\n	<Mensagem>Seguidor solar bem posicionado. Motor a parar.</Mensagem>\n</Aviso>");
+        if(!max_temp_reached)
+            usart_write_string("\n<Aviso>\n	<Mensagem>Seguidor solar bem posicionado. Motor a parar.</Mensagem>\n</Aviso>");
     }
     else
     {
@@ -323,13 +346,11 @@ void print_aqc1_status(int ldr_1, int ldr_2, int temperature, int state)
     usart_write_string(str);
 }
 
-void check_temperature(int temperature)
+int check_temperature(int temperature)
 {
     if(temperature>MAX_TEMPERATURE)
-    {
-        usart_write_string("\n<Aviso>\n	<Mensagem>Temperatura acima do recomendado. Motor a parar.</Mensagem>\n</Aviso>");
-        stopMotor();
-    }
+        return 1;
+    return 0;
 }
 
 void change_heater_state()
@@ -339,7 +360,7 @@ void change_heater_state()
 
 void change_cooler_state()
 {
-    PORTCbits.RC2 = !PORTCbits.RC2;
+    PORTCbits.RC2 = !PORTCbits.RC2; 
 }
 
 int main(void)
@@ -373,7 +394,7 @@ int main(void)
         {
             ldr_1 = adc_read(0);
             ldr_2 = adc_read(1);
-            temperature = adc_read(4);
+            temperature = adc_read(2)/2;
             print_aqc1_status(ldr_1,ldr_2,temperature,state);
             state = solar_tracker(ldr_1,ldr_2,temperature,state);
         }
