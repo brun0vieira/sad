@@ -1,5 +1,4 @@
-// Authors: Bruno Vieira, Francisco Róis and Nikita Dyskin 49541
-
+// Authors: Bruno Vieira, Francisco Róis and Nikita Dyskin 
 
 #include <xc.h>
 #include <stdio.h>
@@ -13,6 +12,8 @@
 #pragma config WRT = OFF // Flash Program Memory Write Enable bits
 #pragma config CP = OFF // Flash Program Memory Code Protection bit
 
+#define MAX_TEMPERATURE 245
+
 void configPorts();
 void moveLeft();
 void moveRight();
@@ -22,11 +23,18 @@ void setStandby();
 int changeMode(int state);
 void delay(int t);
 void adc_init();
+int adc_read(int ch);
 void usart_init();
-void usart_read_char();
-void usart_read_string();
-void usart_write_char();
-void usart_write_string();
+char usart_read_char();
+char* usart_read_string();
+void usart_write_char(char c);
+void usart_write_string(char *text);
+void debounce(int port);
+int solar_tracker(int ldr_1, int ldr_2, int state, int temperature);
+void print_aqc1_status(int ldr_1, int ldr_2, int temperature, int state);
+void check_temperature(int temperature);
+void change_heater_state();
+void change_cooler_state();
 
 void configPorts() 
 {
@@ -44,13 +52,16 @@ void configPorts()
     TRISBbits.TRISB1 = 0; // If its 1 - Motor moving right
     TRISBbits.TRISB2 = 0;
     TRISBbits.TRISB3 = 1; // Button to change mode (Standby and normal)
-    TRISBbits.TRISB4 = 0;
-    TRISBbits.TRISB5 = 0;
+    TRISBbits.TRISB4 = 1; // Button to invert heater mode (on or off)
+    TRISBbits.TRISB5 = 1; // Button to invert cooler mode (on or off)
     TRISBbits.TRISB6 = 0;
     TRISBbits.TRISB7 = 0;
     
     TRISAbits.TRISA0 = 1;
     TRISAbits.TRISA1 = 1;
+    TRISEbits.TRISE0 = 1;
+    TRISCbits.TRISC5 = 0; // heater
+    TRISCbits.TRISC2 = 0; // cooler
     
     // 0 stands for off
     PORTDbits.RD0 = 0;
@@ -126,6 +137,20 @@ void adc_init()
     ADCON0bits.ADON = 1; // turns on AD module
 }
 
+int adc_read(int ch)
+{
+    ADCON1bits.ADFM = 1;
+    ADCON0bits.CHS = ch;
+    
+    ADCON0bits.GO_nDONE = 1; // Starts analog to digital conversion
+    for(;;)
+        if(!ADCON0bits.GO_nDONE) // until the conversion is done
+            break;
+    
+    // adresh - a/d result high register; adresl: a/d result low register
+    return ((ADRESH<<8) + ADRESL); // return right justified 10bit result
+}
+
 void usart_init()
 {
     BRGH = 1;   // high baud rate select bit: 1 - high speed
@@ -151,7 +176,7 @@ char usart_read_char()
         return 0;
 }
 
-void usart_read_string()
+char* usart_read_string()
 {
     char* text;
     int i=0;
@@ -161,9 +186,10 @@ void usart_read_string()
         text[i] = usart_read_char();
         i++;
     }
-    while(text[i]!='\0' && text[i]!='\r' && text[i]!='\r');
+    while(text[i]!='\0' && text[i]!='\r' && text[i]!='\n');
     
     text[i]='\0';
+    return text;
 }
 
 void usart_write_char(char c)
@@ -183,20 +209,174 @@ void usart_write_string(char *text)
         usart_write_char(text[i]);   
 }
 
+void debounce(int port)
+{
+    if(port==3)
+    {
+        while(!PORTBbits.RB3)
+            delay(1000);
+    }
+    else if(port==4)
+    {
+        while(!PORTBbits.RB4)
+            delay(1000);
+    }
+    else if(port==5)
+    {
+        while(!PORTBbits.RB5)
+            delay(1000);
+    }
+    
+}
+
+int solar_tracker(int ldr_1, int ldr_2, int temperature, int state)
+{
+    if(ldr_1 < 20 && ldr_2 < 20)
+    {
+        stopMotor();
+        usart_write_string("\n<Aviso>\n	<Mensagem>Motor a parar.</Mensagem>\n</Aviso>");
+    }
+    else if(ldr_1 - ldr_2 > 100)
+    {
+        moveLeft();
+        usart_write_string("\n<Aviso>\n	<Mensagem>Motor a rodar para a esquerda.</Mensagem>\n</Aviso>");
+        delay(2000);
+        
+        while(ldr_1 - ldr_2 > 100 && state==1)
+        {
+            ldr_1 = adc_read(0);
+            ldr_2 = adc_read(1);
+            temperature = adc_read(4); 
+            print_aqc1_status(ldr_1,ldr_2,temperature,state);
+            
+            if(!PORTBbits.RB3)
+            {
+                debounce(3);
+                
+                state = changeMode(state);
+                stopMotor();
+                break;
+            }
+            else if(!PORTBbits.RB4)
+            {
+                debounce(4);
+                change_heater_state();
+            }
+            else if(!PORTBbits.RB5)
+            {
+                debounce(5);
+                change_cooler_state();
+            }
+        }
+        usart_write_string("\n<Aviso>\n	<Mensagem>Seguidor solar bem posicionado. Motor a parar.</Mensagem>\n</Aviso>");
+    }
+    else if(ldr_2 - ldr_1 > 100)
+    {
+        moveRight();
+        usart_write_string("\n<Aviso>\n	<Mensagem>Motor a rodar para a direita.</Mensagem>\n</Aviso>");
+        delay(2000);
+        
+        while(ldr_2 - ldr_1 > 100 && state==1)
+        {
+            ldr_1 = adc_read(0);
+            ldr_2 = adc_read(1);
+            temperature = adc_read(4);
+            print_aqc1_status(ldr_1,ldr_2,temperature,state);
+            
+            if(!PORTBbits.RB3)
+            {
+                debounce(3);
+                
+                state = changeMode(state);
+                stopMotor();
+                break;
+            }
+            else if(!PORTBbits.RB4)
+            {
+                debounce(4);
+                change_heater_state();
+            }
+            else if(!PORTBbits.RB5)
+            {
+                debounce(5);
+                change_cooler_state();
+            }
+        }
+        usart_write_string("\n<Aviso>\n	<Mensagem>Seguidor solar bem posicionado. Motor a parar.</Mensagem>\n</Aviso>");
+    }
+    else
+    {
+        stopMotor();
+        delay(2000);
+    }
+    return state;
+}
+
+void print_aqc1_status(int ldr_1, int ldr_2, int temperature, int state)
+{
+    char str[50];
+	sprintf(str,"\n<AQC1>\n	<ldr1> %d </ldr1>\n	<ldr2> %d </ldr2>",ldr_1,ldr_2);
+    usart_write_string(str);
+    sprintf(str,"\n	<temperature> %d </temperature>",temperature);
+    usart_write_string(str);
+    sprintf(str,"\n	<state> %d </state>\n</AQC1>",state);
+    usart_write_string(str);
+}
+
+void check_temperature(int temperature)
+{
+    if(temperature>MAX_TEMPERATURE)
+    {
+        usart_write_string("\n<Aviso>\n	<Mensagem>Temperatura acima do recomendado. Motor a parar.</Mensagem>\n</Aviso>");
+        stopMotor();
+    }
+}
+
+void change_heater_state()
+{
+    PORTCbits.RC5 = !PORTCbits.RC5; // invert the heater state 
+}
+
+void change_cooler_state()
+{
+    PORTCbits.RC2 = !PORTCbits.RC2;
+}
+
 int main(void)
 {
     int state = 0; // 0 stands for standby mode and 1 for normal 
-    
+    int ldr_1, ldr_2, temperature;
+    ldr_1 = ldr_2 = temperature = 0;
     configPorts();
+    usart_init();
+    adc_init();
     
     while(1)
     {
         delay(20);
         if(!PORTBbits.RB3)
         {
+            debounce(3);
             state = changeMode(state);
         }
-        
+        else if(!PORTBbits.RB4)
+        {
+            debounce(4);
+            change_heater_state();
+        }
+        else if(!PORTBbits.RB5)
+        {
+            debounce(5);
+            change_cooler_state();
+        }
+        else if(state)
+        {
+            ldr_1 = adc_read(0);
+            ldr_2 = adc_read(1);
+            temperature = adc_read(4);
+            print_aqc1_status(ldr_1,ldr_2,temperature,state);
+            state = solar_tracker(ldr_1,ldr_2,temperature,state);
+        }
     }
 }
 
