@@ -14,20 +14,16 @@
 
 #define MAX_TEMPERATURE 40
 
-/* XML FORMAT
- 
-    <AQCx>
-		<ldr1> value </ldr1>
-		<ldr2> value </ldr2>
-		<temperature> value </temperature>
-		<state> value </state>
-	</AQCx>
+//  <AQCx>
+//      <ldr1> value </ldr1>
+//      <ldr2> value </ldr2>
+//      <temperature> value </temperature>
+//      <state> value </state>
+//  </AQCx>
     
-    <Aviso>
-        <Mensagem> Mensagem a enviar </Mensagem>
-    </Aviso>
-
- */
+//  <Aviso>
+//      <Mensagem> Mensagem a enviar </Mensagem>
+//  </Aviso>
 
 void configPorts();
 void moveLeft();
