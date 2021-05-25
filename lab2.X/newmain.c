@@ -356,11 +356,13 @@ int check_temperature(int temperature)
 void change_heater_state()
 {
     PORTCbits.RC5 = !PORTCbits.RC5; // invert the heater state 
+    PORTDbits.RD4 = !PORTDbits.RD4; // switch the led 
 }
 
 void change_cooler_state()
 {
-    PORTCbits.RC2 = !PORTCbits.RC2; 
+    PORTCbits.RC2 = !PORTCbits.RC2; // inverts the cooler state
+    PORTDbits.RD5 = !PORTDbits.RD5; // switch the led
 }
 
 int main(void)
