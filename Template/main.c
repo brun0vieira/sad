@@ -107,9 +107,6 @@ void usart_init()
 	U2MODE = 0x8000; // 8-bit data - no parity, 1 STOP bit
 	U2STA = 0;  
 	U2STAbits.UTXEN = 1; // Enable transmit
-	//IFSxbits.UxRXIF ??
-	//UxTXIE ??
-	//UxRXIE ??
 }
 
 char usart_read_char()
