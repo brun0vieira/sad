@@ -32,6 +32,9 @@ int solar_tracker(int ldr_1, int ldr_2, int state, int temperature);
 void check_temperature(int temperature);
 void debounce();
 void print_aqc2_status(int ldr_1, int ldr_2, int temperature, int state);
+void config_I2C();
+void read_I2C();
+int write_I2C();
 
 /*
 	<AQC2>
@@ -263,12 +266,87 @@ void print_aqc2_status(int ldr_1, int ldr_2, int temperature, int state)
 	usart_write_string(str);
 }
 
+void config_I2C()
+{
+	int baudRate = 39;
+	I2C2BRG = baudRate; // sets the baud rate pretended
+	I2C2CONbits.I2CEN = 1; // enables I2C
+}
+
+void read_I2C()
+{
+	/*int message_received=0;
+
+    I2C2CONbits.SEN = 1; // 
+    
+	// First we need to w8 until the start condiition is completed
+	while(I2C2CONbits.SEN) ;	
+
+    I2C2TRN = ((0x0A<<1) | 1); // Shifts the address 1 bit to the left and adds a 1
+    
+	// transmit buffer full bit
+    while (I2C2STATbits.TBF) ; // w8s until the transmission ends
+
+    // transmit status bit
+    while (I2C2STATbits.TRSTAT) ; // w8s until the master transmission ends
+  
+    if (I2C2STATbits.ACKSTAT) // checks if the master received an acknowledge
+        return 0;
+
+    I2C2CONbits.RCEN = 1; // master reception
+
+	while(!I2C2STATbits.RBF) ; // w8s until the end of the reception
+	
+	message_received = ;*/
+}
+
+int write_I2C()
+{
+	I2C2CONbits.SEN = 1;
+
+	// First we need to w8 until the start condiition is completed
+	while(I2C2CONbits.SEN) ;
+	
+	// transmit register
+	I2C2TRN = (0x0A<<1 | 0); // Shifts the address 1 bit to the left and adds a 0
+	
+	// transmit buffer full status
+	while(I2C2STATbits.TBF) ; // w8s until the transmission ends
+	
+	// transmit status bit
+	while(I2C2STATbits.TRSTAT) ; // w8s until the master transmission ends
+	usart_write_string('a');
+	// acknowledge status bit
+	if(I2C2STATbits.ACKSTAT) // checks if the master received an acknowledge
+		return 0;
+	
+	usart_write_string('Recebeu ACK0');
+
+	// transmit register
+	I2C2TRN = 0x07;
+	
+	while(I2C2STATbits.TBF) ; // w8s until the transmission ends
+	
+	while(I2C2STATbits.TRSTAT) ; // w8s until the master transmission ends
+	
+	if(I2C2STATbits.ACKSTAT) // checks if the master received an acknowledge
+		return 0;
+	
+	usart_write_string('Recebeu ACK1');
+	I2C2CONbits.PEN = 1; // Stop event
+	
+	while(I2C2CONbits.PEN) ; // w8s until the end of the event
+
+	return 1;
+}
+
 int main(void)
 {	
 	int state = 0;
 	configPorts();
 	usart_init();
 	adc_init();
+	config_I2C();
 	int ldr_1, ldr_2, temperature;
 	ldr_1 = ldr_2 = 0;
 
@@ -282,11 +360,12 @@ int main(void)
 		}
 		if(state)
 		{
-			ldr_1 = adc_read(2); // left
+			write_I2C();
+			/*ldr_1 = adc_read(2); // left
 			ldr_2 = adc_read(3); // right
 			temperature = adc_read(4);
 			print_aqc2_status(ldr_1,ldr_2,temperature,state);
-			state = solar_tracker(ldr_1, ldr_2, state, temperature);
+			state = solar_tracker(ldr_1, ldr_2, state, temperature);*/
 		}
 					
 	}
