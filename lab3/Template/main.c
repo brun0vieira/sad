@@ -57,8 +57,15 @@ void configPorts() {
 
 void setNormal() 
 {
+	int success, msg;
 	PORTAbits.RA6 = 1;
 	usart_write_string("\n<Aviso>\n	<Mensagem>Modo normal ativado.</Mensagem>\n</Aviso>");
+	success = write_I2C();
+	
+	if(success){
+		msg = read_I2C();
+		usart_write_string(msg);
+	}
 }
 
 void setStandby() 
@@ -66,7 +73,6 @@ void setStandby()
 	stopMotor();
 	PORTAbits.RA6 = 0;
 	usart_write_string("\n<Aviso>\n	<Mensagem>Modo standby ativado.</Mensagem>\n</Aviso>");
-	//write_I2C();
 }
 
 int changeMode(int state) // check debounce 
@@ -381,7 +387,6 @@ int main(void)
 			temperature = adc_read(4);
 			print_aqc2_status(ldr_1,ldr_2,temperature,state);
 			state = solar_tracker(ldr_1, ldr_2, state, temperature);
-		}
-					
+		}			
 	}
 }

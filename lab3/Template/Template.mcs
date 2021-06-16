@@ -2,7 +2,7 @@
 MagicCookie={0b13fe8c-dfe0-40eb-8900-6712719559a7}
 Version=1.0
 [File000]
-Location=C:\Users\nikit\OneDrive\Desktop\SAD\Template\main.o
+Location=C:\Users\Francisco Rois\Desktop\SAD\lab3\Template\main.o
 Folder=Intermediary
 DeviceName=PIC24FJ128GA010
 LanguageToolSuiteID={479DDE59-4D56-455E-855E-FFF59A3DB57E}
@@ -15,7 +15,7 @@ ToolArgsString=-g -Wall
 TraceCmdString=
 DebugOptions=
 [File001]
-Location=C:\Users\nikit\OneDrive\Desktop\SAD\Template\Template.cof
+Location=C:\Users\Francisco Rois\Desktop\SAD\lab3\Template\Template.cof
 Folder=Output
 DeviceName=PIC24FJ128GA010
 LanguageToolSuiteID={479DDE59-4D56-455E-855E-FFF59A3DB57E}
@@ -28,7 +28,7 @@ ToolArgsString=-o"$(BINDIR_)$(TARGETBASE).$(TARGETSUFFIX)" -Map="$(BINDIR_)$(TAR
 TraceCmdString=
 DebugOptions=
 [File002]
-Location=C:\Users\nikit\OneDrive\Desktop\SAD\Template\Template.hex
+Location=C:\Users\Francisco Rois\Desktop\SAD\lab3\Template\Template.hex
 Folder=Output
 DeviceName=PIC24FJ128GA010
 LanguageToolSuiteID={479DDE59-4D56-455E-855E-FFF59A3DB57E}
