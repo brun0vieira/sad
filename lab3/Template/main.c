@@ -283,7 +283,7 @@ void config_I2C()
 int read_I2C()
 {
 	int message;
-
+	usart_write_string("debug1");
     I2C2CONbits.SEN = 1; // 
     
 	// First we need to w8 until the start condiition is completed
@@ -292,32 +292,36 @@ int read_I2C()
     I2C2TRN = ((0x0A<<1) | 1); // Shifts the address 1 bit to the left and adds a 1
     
 	// transmit buffer full bit
-    while (I2C2STATbits.TBF) ; // w8s until the transmission ends
+    while(I2C2STATbits.TBF) ; // w8s until the transmission ends
 
     // transmit status bit
-    while (I2C2STATbits.TRSTAT) ; // w8s until the master transmission ends
+    while(I2C2STATbits.TRSTAT) ; // w8s until the master transmission ends
   
-    if (I2C2STATbits.ACKSTAT) // checks if the master received an acknowledge
+    if(I2C2STATbits.ACKSTAT) // checks if the master received an acknowledge
         return 0;
-
+    
     I2C2CONbits.RCEN = 1; // master reception
 	
 	while(I2C2CONbits.RCEN) ; // w8s for the start condition is completed
+	usart_write_string("debug2");
 
 	while(!I2C2STATbits.RBF) ; // w8s until the end of the reception
 	
+	usart_write_string("debug4");
+
 	message = (I2C2RCV << 8); // MSB
-
+	usart_write_string("debug5");
 	I2C2CONbits.ACKDT = 1; // sends a nack
-
+	usart_write_string("debug6");
 	I2C2CONbits.ACKEN = 1;
-
+	usart_write_string("debug7");
 	while(I2C2CONbits.ACKEN) ; 
-
+	usart_write_string("debug8");
 	I2C2CONbits.PEN = 1;
-
+	usart_write_string("debug9");
 	while(I2C2CONbits.PEN) ; 
-	
+	usart_write_string("debug10");
+    
 	return message;
 }
 
@@ -336,13 +340,10 @@ int write_I2C()
 	
 	// transmit status bit
 	while(I2C2STATbits.TRSTAT) ; // w8s until the master transmission ends
-	usart_write_string('a');
+
 	// acknowledge status bit
 	if(I2C2STATbits.ACKSTAT) // checks if the master received an acknowledge
 		return 0;
-	
-	usart_write_string('Recebeu ACK0');
-
 	// transmit register
 	I2C2TRN = 0x07;
 	
@@ -353,11 +354,10 @@ int write_I2C()
 	if(I2C2STATbits.ACKSTAT) // checks if the master received an acknowledge
 		return 0;
 	
-	usart_write_string('Recebeu ACK1');
 	I2C2CONbits.PEN = 1; // Stop event
 	
 	while(I2C2CONbits.PEN) ; // w8s until the end of the event
-
+	
 	return 1;
 }
 
@@ -370,6 +370,7 @@ int main(void)
 	config_I2C();
 	int ldr_1, ldr_2, temperature;
 	ldr_1 = ldr_2 = 0;
+	int success, msg;
 
 	while(1)
 	{
@@ -381,12 +382,18 @@ int main(void)
 		}
 		if(state)
 		{
-			write_I2C();
-			ldr_1 = adc_read(2); // left
-			ldr_2 = adc_read(3); // right
-			temperature = adc_read(4);
-			print_aqc2_status(ldr_1,ldr_2,temperature,state);
-			state = solar_tracker(ldr_1, ldr_2, state, temperature);
+			success = write_I2C();
+			if(success) {
+				msg = read_I2C();
+				usart_write_string("msg:");
+				usart_write_string(msg);
+				usart_write_string("|");
+			}
+			//ldr_1 = adc_read(2); // left
+			//ldr_2 = adc_read(3); // right
+			//temperature = adc_read(4);
+			//print_aqc2_status(ldr_1,ldr_2,temperature,state);
+			//state = solar_tracker(ldr_1, ldr_2, state, temperature);
 		}			
 	}
 }
