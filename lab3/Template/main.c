@@ -33,7 +33,7 @@ void check_temperature(int temperature);
 void debounce();
 void print_aqc2_status(int ldr_1, int ldr_2, int temperature, int state);
 void config_I2C();
-void read_I2C();
+int read_I2C();
 int write_I2C();
 
 /*
@@ -66,6 +66,7 @@ void setStandby()
 	stopMotor();
 	PORTAbits.RA6 = 0;
 	usart_write_string("\n<Aviso>\n	<Mensagem>Modo standby ativado.</Mensagem>\n</Aviso>");
+	//write_I2C();
 }
 
 int changeMode(int state) // check debounce 
@@ -273,9 +274,9 @@ void config_I2C()
 	I2C2CONbits.I2CEN = 1; // enables I2C
 }
 
-void read_I2C()
+int read_I2C()
 {
-	/*int message_received=0;
+	int message;
 
     I2C2CONbits.SEN = 1; // 
     
@@ -294,10 +295,24 @@ void read_I2C()
         return 0;
 
     I2C2CONbits.RCEN = 1; // master reception
+	
+	while(I2C2CONbits.RCEN) ; // w8s for the start condition is completed
 
 	while(!I2C2STATbits.RBF) ; // w8s until the end of the reception
 	
-	message_received = ;*/
+	message = (I2C2RCV << 8); // MSB
+
+	I2C2CONbits.ACKDT = 1; // sends a nack
+
+	I2C2CONbits.ACKEN = 1;
+
+	while(I2C2CONbits.ACKEN) ; 
+
+	I2C2CONbits.PEN = 1;
+
+	while(I2C2CONbits.PEN) ; 
+	
+	return message;
 }
 
 int write_I2C()
@@ -361,11 +376,11 @@ int main(void)
 		if(state)
 		{
 			write_I2C();
-			/*ldr_1 = adc_read(2); // left
+			ldr_1 = adc_read(2); // left
 			ldr_2 = adc_read(3); // right
 			temperature = adc_read(4);
 			print_aqc2_status(ldr_1,ldr_2,temperature,state);
-			state = solar_tracker(ldr_1, ldr_2, state, temperature);*/
+			state = solar_tracker(ldr_1, ldr_2, state, temperature);
 		}
 					
 	}
