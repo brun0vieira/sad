@@ -49,8 +49,8 @@ void change_cooler_state();
 
 void configPorts() 
 {
-    // 0 stands for output and 1 for input
-    TRISDbits.TRISD0 = 0; 
+    // 0 stands for output and 1 for 
+    TRISDbits.TRISD0 = 0;
     TRISDbits.TRISD1 = 0; // If its 1 - Motor moving left
     TRISDbits.TRISD2 = 0;
     TRISDbits.TRISD3 = 0;
