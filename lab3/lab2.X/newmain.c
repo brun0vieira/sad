@@ -2,6 +2,7 @@
 
 #include <xc.h>
 #include <stdio.h>
+#include <string.h>
 
 #pragma config FOSC = HS // Oscillator Selection bits (HS oscillator)
 #pragma config WDTE = OFF // Watchdog Timer Enable bit
@@ -13,6 +14,8 @@
 #pragma config CP = OFF // Flash Program Memory Code Protection bit
 
 #define MAX_TEMPERATURE 40
+int timer_counter=0;
+int state_global=0;
 
 //  <AQCx>
 //      <ldr1> value </ldr1>
@@ -31,7 +34,7 @@ void moveRight();
 void stopMotor();
 void setNormal();
 void setStandby();
-int changeMode(int state);
+void changeMode();
 void delay(int t);
 void adc_init();
 int adc_read(int ch);
@@ -41,11 +44,14 @@ char* usart_read_string();
 void usart_write_char(char c);
 void usart_write_string(char *text);
 void debounce(int port);
-int solar_tracker(int ldr_1, int ldr_2, int temperature, int state);
-void print_aqc1_status(int ldr_1, int ldr_2, int temperature, int state);
+void solar_tracker(int ldr_1, int ldr_2, int temperature);
+void print_aqc1_status(int ldr_1, int ldr_2, int temperature);
 int check_temperature(int temperature);
 void change_heater_state();
 void change_cooler_state();
+void interrupts_init();
+__interrupt() void rb0_int();
+void timer0_init();
 
 void configPorts() 
 {
@@ -59,7 +65,7 @@ void configPorts()
     TRISDbits.TRISD6 = 0;
     TRISDbits.TRISD7 = 0;
     
-    TRISBbits.TRISB0 = 0;
+    TRISBbits.TRISB0 = 1; // rb0 interrupt button
     TRISBbits.TRISB1 = 0; // If its 1 - Motor moving right
     TRISBbits.TRISB2 = 0;
     TRISBbits.TRISB3 = 1; // Button to change mode (Standby and normal)
@@ -123,16 +129,18 @@ void setStandby()
     PORTDbits.RD3 = 0; // d3 led off
 }
 
-int changeMode(int state) 
+void changeMode() 
 {
-    state = !state;
+    state_global = !state_global;
     
-    if(state==1)
+    if(state_global) {
         setNormal();
-    else 
+        usart_write_string("\n<Aviso>\n	<Mensagem>Modo normal ativado</Mensagem>\n</Aviso>");
+    } 
+    else { 
         setStandby();
-
-    return state;
+        usart_write_string("\n<Aviso>\n	<Mensagem>Modo standby ativado</Mensagem>\n</Aviso>");
+    }
 }
 
 void delay(int t)
@@ -222,12 +230,7 @@ void usart_write_string(char *text)
 
 void debounce(int port)
 {
-    if(port==3)
-    {
-        while(!PORTBbits.RB3)
-            delay(1000);
-    }
-    else if(port==4)
+    if(port==4)
     {
         while(!PORTBbits.RB4)
             delay(1000);
@@ -237,10 +240,9 @@ void debounce(int port)
         while(!PORTBbits.RB5)
             delay(1000);
     }
-    
 }
 
-int solar_tracker(int ldr_1, int ldr_2, int temperature, int state)
+void solar_tracker(int ldr_1, int ldr_2, int temperature)
 {
     int max_temp_reached = 0;
     max_temp_reached = check_temperature(temperature);
@@ -260,23 +262,15 @@ int solar_tracker(int ldr_1, int ldr_2, int temperature, int state)
         usart_write_string("\n<Aviso>\n	<Mensagem>Motor a rodar para a esquerda.</Mensagem>\n</Aviso>");
         delay(2000);
         
-        while(ldr_1 - ldr_2 > 100 && state==1)
+        while(ldr_1 - ldr_2 > 100 && state_global==1)
         {
             ldr_1 = adc_read(0);
             ldr_2 = adc_read(1);
             temperature = adc_read(2)/2;
             max_temp_reached = check_temperature(temperature);
-            print_aqc1_status(ldr_1,ldr_2,temperature,state);
+            //print_aqc1_status(ldr_1,ldr_2,temperature);
             
-            if(!PORTBbits.RB3)
-            {
-                debounce(3);
-                
-                state = changeMode(state);
-                stopMotor();
-                break;
-            }
-            else if(!PORTBbits.RB4)
+            if(!PORTBbits.RB4)
             {
                 debounce(4);
                 change_heater_state();
@@ -293,7 +287,7 @@ int solar_tracker(int ldr_1, int ldr_2, int temperature, int state)
                 break;
             }
         }
-        if(!max_temp_reached)
+        if(!max_temp_reached && state_global==1)
             usart_write_string("\n<Aviso>\n	<Mensagem>Seguidor solar bem posicionado. Motor a parar.</Mensagem>\n</Aviso>");
     }
     else if(ldr_2 - ldr_1 > 100)
@@ -302,23 +296,15 @@ int solar_tracker(int ldr_1, int ldr_2, int temperature, int state)
         usart_write_string("\n<Aviso>\n	<Mensagem>Motor a rodar para a direita.</Mensagem>\n</Aviso>");
         delay(2000);
         
-        while(ldr_2 - ldr_1 > 100 && state==1)
+        while(ldr_2 - ldr_1 > 100 && state_global==1)
         {
             ldr_1 = adc_read(0);
             ldr_2 = adc_read(1);
             temperature = adc_read(2)/2;
             max_temp_reached = check_temperature(temperature);
-            print_aqc1_status(ldr_1,ldr_2,temperature,state);
+            //print_aqc1_status(ldr_1,ldr_2,temperature);
             
-            if(!PORTBbits.RB3)
-            {
-                debounce(3);
-                
-                state = changeMode(state);
-                stopMotor();
-                break;
-            }
-            else if(!PORTBbits.RB4)
+            if(!PORTBbits.RB4)
             {
                 debounce(4);
                 change_heater_state();
@@ -335,7 +321,7 @@ int solar_tracker(int ldr_1, int ldr_2, int temperature, int state)
                 break;
             }
         }
-        if(!max_temp_reached)
+        if(!max_temp_reached && state_global==1)
             usart_write_string("\n<Aviso>\n	<Mensagem>Seguidor solar bem posicionado. Motor a parar.</Mensagem>\n</Aviso>");
     }
     else
@@ -343,17 +329,22 @@ int solar_tracker(int ldr_1, int ldr_2, int temperature, int state)
         stopMotor();
         delay(2000);
     }
-    return state;
 }
 
-void print_aqc1_status(int ldr_1, int ldr_2, int temperature, int state)
+void print_aqc1_status(int ldr_1, int ldr_2, int temperature)
 {
     char str[50];
+    char state[50];
+    if(state_global)
+        strcpy(state,"Normal");
+    else
+        strcpy(state,"Standby");
+                
 	sprintf(str,"\n<AQC1>\n	<ldr1> %d </ldr1>\n	<ldr2> %d </ldr2>",ldr_1,ldr_2);
     usart_write_string(str);
     sprintf(str,"\n	<temperature> %d </temperature>",temperature);
     usart_write_string(str);
-    sprintf(str,"\n	<state> %d </state>\n</AQC1>",state);
+    sprintf(str,"\n	<state> %s </state>\n</AQC1>",&state);
     usart_write_string(str);
 }
 
@@ -368,32 +359,90 @@ void change_heater_state()
 {
     PORTCbits.RC5 = !PORTCbits.RC5; // invert the heater state 
     PORTDbits.RD4 = !PORTDbits.RD4; // switch the led 
+    
+    if(PORTCbits.RC5)
+        usart_write_string("\n<Aviso>\n	<Mensagem>Aquecimento ativado.</Mensagem>\n</Aviso>");
+    else
+        usart_write_string("\n<Aviso>\n	<Mensagem>Aquecimento desativado.</Mensagem>\n</Aviso>");
+    
 }
 
 void change_cooler_state()
 {
     PORTCbits.RC2 = !PORTCbits.RC2; // inverts the cooler state
     PORTDbits.RD5 = !PORTDbits.RD5; // switch the led
+    
+    if(PORTCbits.RC2)
+        usart_write_string("\n<Aviso>\n	<Mensagem>Ventoinha ativada.</Mensagem>\n</Aviso>");
+    else
+        usart_write_string("\n<Aviso>\n	<Mensagem>Ventoinha desativada.</Mensagem>\n</Aviso>");
+}
+
+void interrupts_init()
+{
+    INTCONbits.INTE = 1; // RB0/INT External Interrupt Enable bit; 1 - Enables
+    INTCONbits.GIE = 1; // Global Interrupt Enable bit; 1 - Enables all interrupts
+    INTCONbits.TMR0IE = 1; // TMR0 Overflow Interrupt Enable bit; 1 - Enables
+    
+    INTCONbits.INTF = 0; // RB0/INT External Interrupt Flag bit; 0 - the interrupt didn't occur
+    INTCONbits.TMR0IF = 0; // TMR0 Overflow Interrupt Flag bit; 0 - TMR0 didn't overflow
+    
+}
+
+__interrupt() void rb0_int() 
+{
+    if(INTCONbits.TMR0IF) // RB0/INT external interrupt occurred
+    {
+        INTCONbits.TMR0IF = 0;
+        timer_counter++;
+        
+        // 870 = 58*15
+        // 870 is the overflow value (FFh to 00h)
+        if(timer_counter == 870) {
+            print_aqc1_status(0,0,0);
+            timer_counter = 0;
+            TMR1 = 0;
+            TMR0 = 0;
+        }
+    }
+    
+    if(INTCONbits.INTF) // RB0/INT External Interrupt Flag bit
+    {
+        INTCONbits.INTF = 0;
+        changeMode();
+    }
+
+}
+
+void timer0_init()
+{
+    // Reference: https://openlabpro.com/guide/pic16f877a-timer/
+    TMR0 = 0;
+    T0CS = 0; // TMR0 Clock Source Select bit; 0 - internal instruction cycle clock (CLKO)
+    T0SE = 0; // TMR0 Source Edge Select bit; 0 - increment on low-to-high transition on T0CKI pin
+    PSA = 0; // Prescaler Assignment bit; 0 - assigned to the timer0 module
+    
+    // PS2:PS0 - prescaler rate select bits
+    // Bit value: 111 (TMR0 Rate: 1:256 - WDT Rate: 1:128)
+    PS0 = 1;
+    PS1 = 1;
+    PS2 = 1;
 }
 
 int main(void)
-{
-    int state = 0; // 0 stands for standby mode and 1 for normal 
+{ 
     int ldr_1, ldr_2, temperature;
     ldr_1 = ldr_2 = temperature = 0;
     configPorts();
     usart_init();
     adc_init();
+    interrupts_init();
+    timer0_init();
     
     while(1)
     {
         delay(20);
-        if(!PORTBbits.RB3)
-        {
-            debounce(3);
-            state = changeMode(state);
-        }
-        else if(!PORTBbits.RB4)
+        if(!PORTBbits.RB4)
         {
             debounce(4);
             change_heater_state();
@@ -403,13 +452,13 @@ int main(void)
             debounce(5);
             change_cooler_state();
         }
-        else if(state)
+        else if(state_global)
         {
             ldr_1 = adc_read(0);
             ldr_2 = adc_read(1);
             temperature = adc_read(2)/2;
-            print_aqc1_status(ldr_1,ldr_2,temperature,state);
-            state = solar_tracker(ldr_1,ldr_2,temperature,state);
+            //print_aqc1_status(ldr_1,ldr_2,temperature);
+            solar_tracker(ldr_1,ldr_2,temperature);
         }
     }
 }
