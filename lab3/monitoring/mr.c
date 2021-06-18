@@ -30,6 +30,7 @@ int main()
     SOCKET s;
     struct sockaddr_in server;
     char msg[250];
+    FILE *fp;
 
     printf("\nInitialising Winsock...");
 	if (WSAStartup(MAKEWORD(2,2),&wsa) != 0)
@@ -102,10 +103,10 @@ int main()
         //Connect to remote server
 		if (connect(s , (struct sockaddr *)&server , sizeof(server)) < 0)
 		{
-			puts("connect error\n");
+			printf("connect error\n");
 			return 1;
 		}
-		puts("Connected\n");
+		printf("Connected\n");
 
         // Send specified text (remaining command line arguments)
 		DWORD bytes_ridden = 0;
@@ -126,17 +127,23 @@ int main()
 
         if(bytes_ridden!=0)
         {
-            // <AQC1> Data related to the data aquisition system (ldr values, temperature, state)
-            // <Aviso> Warnings (ex: Motor a rodar para a direita...)
-            /*strcpy(type,subString(message));
-            fprintf(stderr, "teste:%s",type);*/
             
             sprintf(msg, "POST /~sad/ HTTP/1.1\r\nHost: 193.136.120.133\r\nContent-Type: application/xml\r\nContent-Length: %d\r\n%s\r\n\r\n", bytes_ridden, message);
 			
             if(send(s, msg, strlen(msg), 0) < 0)
-				puts("Send failed.");
+				printf("Send failed.");
 
-			puts("Data Sent to server...\n");
+			printf("Data Sent to server...\n");
+            
+            fp = fopen("database.txt", "a+");
+            
+            if(fp)
+                fputs(message,fp);
+            else
+                printf("Unable do save data in file \"database.txt\"");
+            
+            fclose(fp);
+
         }
         closesocket(s);
     }
