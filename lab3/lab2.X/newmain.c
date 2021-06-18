@@ -67,6 +67,8 @@ void interrupts_init();
 __interrupt() void rb0_int();
 void timer0_init();
 void init();
+void wait_for_temperature(int max_temp_reached, int modo);
+void read_adc_values();
 
 void configPorts() 
 {
@@ -260,6 +262,7 @@ void debounce(int port)
 void solar_tracker()
 {
     int max_temp_reached = 0;
+    read_adc_values();
     max_temp_reached = check_temperature(aqc1.temperature);
     
     if(aqc1.ldr1 < 20 && aqc1.ldr2 < 20)
@@ -269,7 +272,7 @@ void solar_tracker()
     }
     else if(max_temp_reached) 
     {
-        // doesnt do anything - as supposed
+        wait_for_temperature(max_temp_reached, 0);
     }
     else if(aqc1.ldr1 - aqc1.ldr2 > 100)
     {
@@ -279,9 +282,7 @@ void solar_tracker()
         
         while(aqc1.ldr1 - aqc1.ldr2 > 100 && aqc1.state==1)
         {
-            aqc1.ldr1 = adc_read(0);
-            aqc1.ldr2 = adc_read(1);
-            aqc1.temperature = adc_read(2)/2;
+            read_adc_values();
             max_temp_reached = check_temperature(aqc1.temperature);
             
             if(!PORTBbits.RB4)
@@ -296,9 +297,7 @@ void solar_tracker()
             }
             else if(max_temp_reached)
             {
-                usart_write_string("\n\n<Aviso>\n	<Mensagem>Temperatura acima do recomendado. Motor a parar.</Mensagem>\n</Aviso>");
-                stopMotor();
-                break;
+                wait_for_temperature(max_temp_reached, 1);
             }
         }
         if(!max_temp_reached && aqc1.state==1)
@@ -312,9 +311,7 @@ void solar_tracker()
         
         while(aqc1.ldr2 - aqc1.ldr1 > 100 && aqc1.state==1)
         {
-            aqc1.ldr1 = adc_read(0);
-            aqc1.ldr2 = adc_read(1);
-            aqc1.temperature = adc_read(2)/2;
+            read_adc_values();
             max_temp_reached = check_temperature(aqc1.temperature);
             
             if(!PORTBbits.RB4)
@@ -329,9 +326,7 @@ void solar_tracker()
             }
             else if(max_temp_reached)
             {
-                usart_write_string("\n\n<Aviso>\n	<Mensagem>Temperatura acima do recomendado. Motor a parar.</Mensagem>\n</Aviso>");
-                stopMotor();
-                break;
+                wait_for_temperature(max_temp_reached, 2);
             }
         }
         if(!max_temp_reached && aqc1.state==1)
@@ -455,6 +450,45 @@ void init()
     aqc1.state = 0;
 }
 
+// modo: rodar para direita 2, esquerda 1 ou parado 0(para retomar o que estava a fazer)
+void wait_for_temperature(int max_temp_reached, int modo)
+{
+    stopMotor();
+    usart_write_string("\n\n<Aviso>\n	<Mensagem>Temperatura acima do recomendado. Motor a parar.</Mensagem>\n</Aviso>");
+   
+    while(max_temp_reached)
+    {
+        read_adc_values();
+        max_temp_reached = check_temperature(aqc1.temperature);
+        if(!PORTBbits.RB4)
+        {
+            debounce(4);
+            change_heater_state();
+        }
+        else if(!PORTBbits.RB5)
+        {
+            debounce(5);
+            change_cooler_state();
+        }
+    }
+    usart_write_string("\n\n<Aviso>\n	<Mensagem>Temperatura normal. A retomar.</Mensagem>\n</Aviso>");
+    
+    switch(modo)
+    {
+        case 0: break; // motor estava parado
+        case 1: moveLeft(); break; // motor estava a rodar para a esquerda
+        case 2: moveRight(); break; // motor estava a rodar para a direita
+        default: break;
+    }
+}
+
+void read_adc_values()
+{
+    aqc1.ldr1 = adc_read(0);
+    aqc1.ldr2 = adc_read(1);
+    aqc1.temperature = adc_read(2)/2;
+}
+
 int main(void)
 { 
     init();
@@ -474,9 +508,7 @@ int main(void)
         }
         else if(aqc1.state)
         {
-            aqc1.ldr1 = adc_read(0);
-            aqc1.ldr2 = adc_read(1);
-            aqc1.temperature = adc_read(2)/2;
+            read_adc_values();
             solar_tracker();
         }
     }
