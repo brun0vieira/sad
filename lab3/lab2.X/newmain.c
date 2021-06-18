@@ -15,8 +15,18 @@
 
 #define MAX_TEMPERATURE 40
 int timer_counter=0;
-int state_global=0;
 
+typedef struct _Aqc1
+{
+    int ldr1;
+    int ldr2;
+    int temperature;
+    int state;
+} Aqc1;
+
+Aqc1 aqc1;
+
+// ------------------------------ XML FORMAT ---------------------------
 //  <AQCx>
 //      <ldr1> value </ldr1>
 //      <ldr2> value </ldr2>
@@ -27,6 +37,7 @@ int state_global=0;
 //  <Aviso>
 //      <Mensagem> Mensagem a enviar </Mensagem>
 //  </Aviso>
+// ----------------------------------------------------------------------
 
 void configPorts();
 void moveLeft();
@@ -44,14 +55,15 @@ char* usart_read_string();
 void usart_write_char(char c);
 void usart_write_string(char *text);
 void debounce(int port);
-void solar_tracker(int ldr_1, int ldr_2, int temperature);
-void print_aqc1_status(int ldr_1, int ldr_2, int temperature);
+void solar_tracker();
+void print_aqc1_status();
 int check_temperature(int temperature);
 void change_heater_state();
 void change_cooler_state();
 void interrupts_init();
 __interrupt() void rb0_int();
 void timer0_init();
+void init();
 
 void configPorts() 
 {
@@ -131,9 +143,9 @@ void setStandby()
 
 void changeMode() 
 {
-    state_global = !state_global;
+    aqc1.state = !aqc1.state;
     
-    if(state_global) {
+    if(aqc1.state) {
         setNormal();
         usart_write_string("\n<Aviso>\n	<Mensagem>Modo normal ativado</Mensagem>\n</Aviso>");
     } 
@@ -242,12 +254,12 @@ void debounce(int port)
     }
 }
 
-void solar_tracker(int ldr_1, int ldr_2, int temperature)
+void solar_tracker()
 {
     int max_temp_reached = 0;
-    max_temp_reached = check_temperature(temperature);
+    max_temp_reached = check_temperature(aqc1.temperature);
     
-    if(ldr_1 < 20 && ldr_2 < 20)
+    if(aqc1.ldr1 < 20 && aqc1.ldr2 < 20)
     {
         stopMotor();
         usart_write_string("\n<Aviso>\n	<Mensagem>Motor a parar.</Mensagem>\n</Aviso>");
@@ -256,19 +268,18 @@ void solar_tracker(int ldr_1, int ldr_2, int temperature)
     {
         // doesnt do anything - as supposed
     }
-    else if(ldr_1 - ldr_2 > 100)
+    else if(aqc1.ldr1 - aqc1.ldr2 > 100)
     {
         moveLeft();
         usart_write_string("\n<Aviso>\n	<Mensagem>Motor a rodar para a esquerda.</Mensagem>\n</Aviso>");
         delay(2000);
         
-        while(ldr_1 - ldr_2 > 100 && state_global==1)
+        while(aqc1.ldr1 - aqc1.ldr2 > 100 && aqc1.state==1)
         {
-            ldr_1 = adc_read(0);
-            ldr_2 = adc_read(1);
-            temperature = adc_read(2)/2;
-            max_temp_reached = check_temperature(temperature);
-            //print_aqc1_status(ldr_1,ldr_2,temperature);
+            aqc1.ldr1 = adc_read(0);
+            aqc1.ldr2 = adc_read(1);
+            aqc1.temperature = adc_read(2)/2;
+            max_temp_reached = check_temperature(aqc1.temperature);
             
             if(!PORTBbits.RB4)
             {
@@ -287,22 +298,21 @@ void solar_tracker(int ldr_1, int ldr_2, int temperature)
                 break;
             }
         }
-        if(!max_temp_reached && state_global==1)
+        if(!max_temp_reached && aqc1.state==1)
             usart_write_string("\n<Aviso>\n	<Mensagem>Seguidor solar bem posicionado. Motor a parar.</Mensagem>\n</Aviso>");
     }
-    else if(ldr_2 - ldr_1 > 100)
+    else if(aqc1.ldr2 - aqc1.ldr1 > 100)
     {
         moveRight();
         usart_write_string("\n<Aviso>\n	<Mensagem>Motor a rodar para a direita.</Mensagem>\n</Aviso>");
         delay(2000);
         
-        while(ldr_2 - ldr_1 > 100 && state_global==1)
+        while(aqc1.ldr2 - aqc1.ldr1 > 100 && aqc1.state==1)
         {
-            ldr_1 = adc_read(0);
-            ldr_2 = adc_read(1);
-            temperature = adc_read(2)/2;
-            max_temp_reached = check_temperature(temperature);
-            //print_aqc1_status(ldr_1,ldr_2,temperature);
+            aqc1.ldr1 = adc_read(0);
+            aqc1.ldr2 = adc_read(1);
+            aqc1.temperature = adc_read(2)/2;
+            max_temp_reached = check_temperature(aqc1.temperature);
             
             if(!PORTBbits.RB4)
             {
@@ -321,7 +331,7 @@ void solar_tracker(int ldr_1, int ldr_2, int temperature)
                 break;
             }
         }
-        if(!max_temp_reached && state_global==1)
+        if(!max_temp_reached && aqc1.state==1)
             usart_write_string("\n<Aviso>\n	<Mensagem>Seguidor solar bem posicionado. Motor a parar.</Mensagem>\n</Aviso>");
     }
     else
@@ -331,18 +341,18 @@ void solar_tracker(int ldr_1, int ldr_2, int temperature)
     }
 }
 
-void print_aqc1_status(int ldr_1, int ldr_2, int temperature)
+void print_aqc1_status()
 {
     char str[50];
     char state[50];
-    if(state_global)
+    if(aqc1.state)
         strcpy(state,"Normal");
     else
         strcpy(state,"Standby");
                 
-	sprintf(str,"\n<AQC1>\n	<ldr1> %d </ldr1>\n	<ldr2> %d </ldr2>",ldr_1,ldr_2);
+	sprintf(str,"\n<AQC1>\n	<ldr1> %d </ldr1>\n	<ldr2> %d </ldr2>",aqc1.ldr1,aqc1.ldr2);
     usart_write_string(str);
-    sprintf(str,"\n	<temperature> %d </temperature>",temperature);
+    sprintf(str,"\n	<temperature> %d </temperature>",aqc1.temperature);
     usart_write_string(str);
     sprintf(str,"\n	<state> %s </state>\n</AQC1>",&state);
     usart_write_string(str);
@@ -399,7 +409,7 @@ __interrupt() void rb0_int()
         // 870 = 58*15
         // 870 is the overflow value (FFh to 00h)
         if(timer_counter == 870) {
-            print_aqc1_status(0,0,0);
+            print_aqc1_status();
             timer_counter = 0;
             TMR1 = 0;
             TMR0 = 0;
@@ -429,15 +439,22 @@ void timer0_init()
     PS2 = 1;
 }
 
-int main(void)
-{ 
-    int ldr_1, ldr_2, temperature;
-    ldr_1 = ldr_2 = temperature = 0;
+void init()
+{
     configPorts();
     usart_init();
     adc_init();
     interrupts_init();
     timer0_init();
+    aqc1.ldr1 = 0;
+    aqc1.ldr2 = 0;
+    aqc1.temperature = 0;
+    aqc1.state = 0;
+}
+
+int main(void)
+{ 
+    init();
     
     while(1)
     {
@@ -452,13 +469,12 @@ int main(void)
             debounce(5);
             change_cooler_state();
         }
-        else if(state_global)
+        else if(aqc1.state)
         {
-            ldr_1 = adc_read(0);
-            ldr_2 = adc_read(1);
-            temperature = adc_read(2)/2;
-            //print_aqc1_status(ldr_1,ldr_2,temperature);
-            solar_tracker(ldr_1,ldr_2,temperature);
+            aqc1.ldr1 = adc_read(0);
+            aqc1.ldr2 = adc_read(1);
+            aqc1.temperature = adc_read(2)/2;
+            solar_tracker();
         }
     }
 }
