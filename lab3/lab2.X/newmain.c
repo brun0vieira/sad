@@ -150,11 +150,11 @@ void changeMode()
     
     if(aqc1.state) {
         setNormal();
-        usart_write_string("\n<Aviso>\n	<Mensagem>Modo normal ativado</Mensagem>\n</Aviso>");
+        usart_write_string("\n\n<Aviso>\n	<Mensagem>Modo normal ativado</Mensagem>\n</Aviso>");
     } 
     else { 
         setStandby();
-        usart_write_string("\n<Aviso>\n	<Mensagem>Modo standby ativado</Mensagem>\n</Aviso>");
+        usart_write_string("\n\n<Aviso>\n	<Mensagem>Modo standby ativado</Mensagem>\n</Aviso>");
     }
 }
 
@@ -265,7 +265,7 @@ void solar_tracker()
     if(aqc1.ldr1 < 20 && aqc1.ldr2 < 20)
     {
         stopMotor();
-        usart_write_string("\n<Aviso>\n	<Mensagem>Motor a parar.</Mensagem>\n</Aviso>");
+        usart_write_string("\n\n<Aviso>\n	<Mensagem>Motor a parar.</Mensagem>\n</Aviso>");
     }
     else if(max_temp_reached) 
     {
@@ -274,7 +274,7 @@ void solar_tracker()
     else if(aqc1.ldr1 - aqc1.ldr2 > 100)
     {
         moveLeft();
-        usart_write_string("\n<Aviso>\n	<Mensagem>Motor a rodar para a esquerda.</Mensagem>\n</Aviso>");
+        usart_write_string("\n\n<Aviso>\n	<Mensagem>Motor a rodar para a esquerda.</Mensagem>\n</Aviso>");
         delay(2000);
         
         while(aqc1.ldr1 - aqc1.ldr2 > 100 && aqc1.state==1)
@@ -296,18 +296,18 @@ void solar_tracker()
             }
             else if(max_temp_reached)
             {
-                usart_write_string("\n<Aviso>\n	<Mensagem>Temperatura acima do recomendado. Motor a parar.</Mensagem>\n</Aviso>");
+                usart_write_string("\n\n<Aviso>\n	<Mensagem>Temperatura acima do recomendado. Motor a parar.</Mensagem>\n</Aviso>");
                 stopMotor();
                 break;
             }
         }
         if(!max_temp_reached && aqc1.state==1)
-            usart_write_string("\n<Aviso>\n	<Mensagem>Seguidor solar bem posicionado. Motor a parar.</Mensagem>\n</Aviso>");
+            usart_write_string("\n\n<Aviso>\n	<Mensagem>Seguidor solar bem posicionado. Motor a parar.</Mensagem>\n</Aviso>");
     }
     else if(aqc1.ldr2 - aqc1.ldr1 > 100)
     {
         moveRight();
-        usart_write_string("\n<Aviso>\n	<Mensagem>Motor a rodar para a direita.</Mensagem>\n</Aviso>");
+        usart_write_string("\n\n<Aviso>\n	<Mensagem>Motor a rodar para a direita.</Mensagem>\n</Aviso>");
         delay(2000);
         
         while(aqc1.ldr2 - aqc1.ldr1 > 100 && aqc1.state==1)
@@ -329,13 +329,13 @@ void solar_tracker()
             }
             else if(max_temp_reached)
             {
-                usart_write_string("\n<Aviso>\n	<Mensagem>Temperatura acima do recomendado. Motor a parar.</Mensagem>\n</Aviso>");
+                usart_write_string("\n\n<Aviso>\n	<Mensagem>Temperatura acima do recomendado. Motor a parar.</Mensagem>\n</Aviso>");
                 stopMotor();
                 break;
             }
         }
         if(!max_temp_reached && aqc1.state==1)
-            usart_write_string("\n<Aviso>\n	<Mensagem>Seguidor solar bem posicionado. Motor a parar.</Mensagem>\n</Aviso>");
+            usart_write_string("\n\n<Aviso>\n	<Mensagem>Seguidor solar bem posicionado. Motor a parar.</Mensagem>\n</Aviso>");
     }
     else
     {
@@ -354,7 +354,7 @@ void print_aqc1_status()
     else
         strcpy(state,"Standby");
                 
-	sprintf(str,"\n<AQC1>\n	<ldr1> %d </ldr1>\n	<ldr2> %d </ldr2>",aqc1.ldr1,aqc1.ldr2);
+	sprintf(str,"\n\n<AQC1>\n	<ldr1> %d </ldr1>\n	<ldr2> %d </ldr2>",aqc1.ldr1,aqc1.ldr2);
     usart_write_string(str);
     sprintf(str,"\n	<temperature> %d </temperature>",aqc1.temperature);
     usart_write_string(str);
@@ -375,9 +375,9 @@ void change_heater_state()
     PORTDbits.RD4 = !PORTDbits.RD4; // switch the led 
     
     if(PORTCbits.RC5)
-        usart_write_string("\n<Aviso>\n	<Mensagem>Aquecimento ativado.</Mensagem>\n</Aviso>");
+        usart_write_string("\n\n<Aviso>\n	<Mensagem>Aquecimento ativado.</Mensagem>\n</Aviso>");
     else
-        usart_write_string("\n<Aviso>\n	<Mensagem>Aquecimento desativado.</Mensagem>\n</Aviso>");
+        usart_write_string("\n\n<Aviso>\n	<Mensagem>Aquecimento desativado.</Mensagem>\n</Aviso>");
     
 }
 
@@ -387,9 +387,9 @@ void change_cooler_state()
     PORTDbits.RD5 = !PORTDbits.RD5; // switch the led
     
     if(PORTCbits.RC2)
-        usart_write_string("\n<Aviso>\n	<Mensagem>Ventoinha ativada.</Mensagem>\n</Aviso>");
+        usart_write_string("\n\n<Aviso>\n	<Mensagem>Ventoinha ativada.</Mensagem>\n</Aviso>");
     else
-        usart_write_string("\n<Aviso>\n	<Mensagem>Ventoinha desativada.</Mensagem>\n</Aviso>");
+        usart_write_string("\n\n<Aviso>\n	<Mensagem>Ventoinha desativada.</Mensagem>\n</Aviso>");
 }
 
 void interrupts_init()
@@ -400,7 +400,6 @@ void interrupts_init()
     
     INTCONbits.INTF = 0; // RB0/INT External Interrupt Flag bit; 0 - the interrupt didn't occur
     INTCONbits.TMR0IF = 0; // TMR0 Overflow Interrupt Flag bit; 0 - TMR0 didn't overflow
-    
 }
 
 __interrupt() void rb0_int() 
@@ -482,4 +481,3 @@ int main(void)
         }
     }
 }
-
