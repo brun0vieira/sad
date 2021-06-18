@@ -1,4 +1,7 @@
-// Authors: Bruno Vieira, Francisco Róis and Nikita Dyskin 
+// Authors: 
+//     Bruno Vieira 
+//     Francisco Róis
+//     Nikita Dyskin 
 
 #include <xc.h>
 #include <stdio.h>
@@ -345,6 +348,7 @@ void print_aqc1_status()
 {
     char str[50];
     char state[50];
+    
     if(aqc1.state)
         strcpy(state,"Normal");
     else
