@@ -2,8 +2,22 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <WinSock2.h>
+#include <string.h>
 
 #pragma comment(lib, "ws2_32.lib") // Winsock Lib
+
+/*char * subString(char * string)
+{
+    int i;
+    char type[20];
+
+    for(i=0; string[i]!='>'; i++)
+    {
+        type[i] = string[i];
+    }
+    type[i+1] = '\0';
+    return type;
+}*/
 
 int main()
 {
@@ -15,7 +29,7 @@ int main()
     WSADATA wsa;
     SOCKET s;
     struct sockaddr_in server;
-    char msg[300];
+    char msg[250];
 
     printf("\nInitialising Winsock...");
 	if (WSAStartup(MAKEWORD(2,2),&wsa) != 0)
@@ -73,20 +87,6 @@ int main()
         return 1;
     }
  
-    // while...
-
-    // connect to remote server...
-
-    // receive data from com
-
-    // send data to server
-
-    // close connection (socket)
-
-    // Close serial port
-
-    // Test
-
     while(1)
     {
         // Reference: https://www.binarytides.com/winsock-socket-programming-tutorial/
@@ -110,6 +110,7 @@ int main()
         // Send specified text (remaining command line arguments)
 		DWORD bytes_ridden = 0;
 		char message[250] = {0};
+        char type[10] = {0};
 		fprintf(stderr, "Waiting to receive bytes...\n");
 		while(bytes_ridden==0){
 			if(!ReadFile(hSerial, message, 250, &bytes_ridden, NULL))
@@ -123,6 +124,21 @@ int main()
 
         fprintf(stderr, "%s\n\n", message);
 
+        if(bytes_ridden!=0)
+        {
+            // <AQC1> Data related to the data aquisition system (ldr values, temperature, state)
+            // <Aviso> Warnings (ex: Motor a rodar para a direita...)
+            /*strcpy(type,subString(message));
+            fprintf(stderr, "teste:%s",type);*/
+            
+            sprintf(msg, "POST /~sad/ HTTP/1.1\r\nHost: 193.136.120.133\r\nContent-Type: application/xml\r\nContent-Length: %d\r\n%s\r\n\r\n", bytes_ridden, message);
+			
+            if(send(s, msg, strlen(msg), 0) < 0)
+				puts("Send failed.");
+
+			puts("Data Sent to server...\n");
+        }
+        closesocket(s);
     }
 
     fprintf(stderr, "Closing serial port...");
