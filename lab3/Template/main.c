@@ -58,13 +58,16 @@ void configPorts() {
 void setNormal() 
 {
 	int success, msg;
+	char msg_string[50];
+
 	PORTAbits.RA6 = 1;
 	usart_write_string("\n<Aviso>\n	<Mensagem>Modo normal ativado.</Mensagem>\n</Aviso>");
 	success = write_I2C();
 	
 	if(success){
 		msg = read_I2C();
-		usart_write_string(msg);
+		sprintf(msg_string, "LDR diff=%d, ", msg); 
+		usart_write_string(msg_string);
 	}
 }
 
@@ -283,7 +286,7 @@ void config_I2C()
 int read_I2C()
 {
 	int message;
-	usart_write_string("debug1");
+
     I2C2CONbits.SEN = 1; // 
     
 	// First we need to w8 until the start condiition is completed
@@ -302,25 +305,21 @@ int read_I2C()
     
     I2C2CONbits.RCEN = 1; // master reception
 	
-	while(I2C2CONbits.RCEN) ; // w8s for the start condition is completed
-	usart_write_string("debug2");
-
 	while(!I2C2STATbits.RBF) ; // w8s until the end of the reception
-	
-	usart_write_string("debug4");
 
-	message = (I2C2RCV << 8); // MSB
-	usart_write_string("debug5");
+	message = (I2C2RCV); // MSB
+	
+	while(I2C2CONbits.RCEN) ; // w8s for the start condition to be complete
+
 	I2C2CONbits.ACKDT = 1; // sends a nack
-	usart_write_string("debug6");
+	
 	I2C2CONbits.ACKEN = 1;
-	usart_write_string("debug7");
+	
 	while(I2C2CONbits.ACKEN) ; 
-	usart_write_string("debug8");
+	
 	I2C2CONbits.PEN = 1;
-	usart_write_string("debug9");
+	
 	while(I2C2CONbits.PEN) ; 
-	usart_write_string("debug10");
     
 	return message;
 }
@@ -370,7 +369,6 @@ int main(void)
 	config_I2C();
 	int ldr_1, ldr_2, temperature;
 	ldr_1 = ldr_2 = 0;
-	int success, msg;
 
 	while(1)
 	{
@@ -382,13 +380,7 @@ int main(void)
 		}
 		if(state)
 		{
-			success = write_I2C();
-			if(success) {
-				msg = read_I2C();
-				usart_write_string("msg:");
-				usart_write_string(msg);
-				usart_write_string("|");
-			}
+			// we no longer need to read the adc values as we receive the ldr diff from the arduino
 			//ldr_1 = adc_read(2); // left
 			//ldr_2 = adc_read(3); // right
 			//temperature = adc_read(4);
