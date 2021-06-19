@@ -12,6 +12,7 @@ _CONFIG2( FCKSM_CSDCMD & OSCIOFNC_OFF & POSCMOD_HS & FNOSC_PRI)
 #endif
 
 #define MAX_TEMPERATURE 245
+int counter=0; // Se for par roda para a direita, ímpar roda para a esquerda
 
 void configPorts();
 void setNormal();
@@ -28,18 +29,19 @@ void usart_write_char(char c);
 void usart_write_string();
 void adc_init();
 int adc_read(int channel);
-int solar_tracker(int ldr_1, int ldr_2, int state, int temperature);
+int solar_tracker(int ldr_diff, int state, int temperature);
 void check_temperature(int temperature);
 void debounce();
-void print_aqc2_status(int ldr_1, int ldr_2, int temperature, int state);
+void print_aqc2_status(int ldr_diff, int temperature, int state);
 void config_I2C();
 int read_I2C();
 int write_I2C();
+int get_ldr_diff();
+void init();
 
 /*
 	<AQC2>
-		<ldr1> value </ldr1>
-		<ldr2> value </ldr2>
+		<ldr_diff> value </ldr_diff>
 		<temperature> value </temperature>
 		<state> value </state>
 	</AQC2>
@@ -62,10 +64,11 @@ void setNormal()
 
 	PORTAbits.RA6 = 1;
 	usart_write_string("\n<Aviso>\n	<Mensagem>Modo normal ativado.</Mensagem>\n</Aviso>");
-	success = write_I2C();
 	
-	if(success){
-		msg = read_I2C();
+	msg = get_ldr_diff();
+
+	if(msg!=0)
+	{
 		sprintf(msg_string, "LDR diff=%d, ", msg); 
 		usart_write_string(msg_string);
 	}
@@ -193,24 +196,24 @@ int adc_read(int channel)
 	return ADC1BUF0;
 }
 
-int solar_tracker(int ldr_1, int ldr_2, int state, int temperature)
+int solar_tracker(int ldr_diff, int state, int temperature)
 {
-	if(ldr_1 < 20 && ldr_2 < 20) // noite - atribuir o 20 a uma variavel
+	if(ldr_diff < 20 || ldr_diff > 200) // erro
 	{
 		stopMotor();
-		usart_write_string("\n<Aviso>\n	<Mensagem>Motor a parar.</Mensagem>\n</Aviso>");
+		usart_write_string("\n<Aviso>\n	<Mensagem>Erro.</Mensagem>\n</Aviso>");
 	}
-	else if(ldr_1 - ldr_2 > 100) // if there's a noticable difference then it rotates 
+	else if(ldr_diff > 100 && counter%2==0) // if there's a noticable difference && the counter is even then rotates to the left
 	{
 		moveLeft();
 		usart_write_string("\n<Aviso>\n	<Mensagem>Motor a rodar para a esquerda.</Mensagem>\n</Aviso>");
 		delay(2000);
 		
-		while(ldr_1 - ldr_2 > 100 && state==1)
+		while(ldr_diff > 100 && state==1)
 		{	
-			ldr_1 = adc_read(2); // left
-			ldr_2 = adc_read(3); // right
-			print_aqc2_status(ldr_1,ldr_2,temperature,state);
+			temperature = adc_read(4);
+			ldr_diff = get_ldr_diff();
+			print_aqc2_status(ldr_diff, temperature, state);
 		
 			if(!PORTDbits.RD6)
 			{
@@ -223,16 +226,16 @@ int solar_tracker(int ldr_1, int ldr_2, int state, int temperature)
 		}
 		usart_write_string("\n<Aviso>\n	<Mensagem>Seguidor solar bem posicionado. Motor a parar.</Mensagem>\n</Aviso>");
 	}
-	else if(ldr_2 - ldr_1 > 100)
+	else if(ldr_diff > 100 && counter%2!=0)
 	{
 		moveRight();
 		usart_write_string("\n<Aviso>\n	<Mensagem>Motor a rodar para a direita.</Mensagem>\n</Aviso>");
 		delay(2000);
-		while(ldr_2 - ldr_1 > 100 && state==1)
+		while(ldr_diff > 100 && state==1)
 		{
-			ldr_1 = adc_read(2); // left
-			ldr_2 = adc_read(3); // right
-			print_aqc2_status(ldr_1,ldr_2,temperature,state);
+			temperature = adc_read(4);
+			ldr_diff = get_ldr_diff();
+			print_aqc2_status(ldr_diff, temperature, state);
 
 			if(!PORTDbits.RD6)
 			{
@@ -269,10 +272,10 @@ void debounce()
 		delay(1000);
 }
 
-void print_aqc2_status(int ldr_1, int ldr_2, int temperature, int state)
+void print_aqc2_status(int ldr_diff, int temperature, int state)
 {
 	char str[150];
-	sprintf(str,"\n<AQC2>\n	<ldr1> %d </ldr1>\n	<ldr2> %d </ldr2>\n	<temperature> %d </temperature>\n	<state> %d </state>\n</AQC2>",ldr_1,ldr_2,temperature,state);
+	sprintf(str,"\n<AQC2>\n	<ldr_diff> %d </ldr1_diff>\n	<temperature> %d </temperature>\n	<state> %d </state>\n</AQC2>",ldr_diff,temperature,state);
 	usart_write_string(str);
 }
 
@@ -360,15 +363,32 @@ int write_I2C()
 	return 1;
 }
 
-int main(void)
-{	
-	int state = 0;
+int get_ldr_diff()
+{
+	int success, msg;
+	success = write_I2C();
+	
+	if(success){
+		msg = read_I2C();
+		return msg;
+	}
+	return 0;
+}
+
+void init()
+{
 	configPorts();
 	usart_init();
 	adc_init();
 	config_I2C();
-	int ldr_1, ldr_2, temperature;
-	ldr_1 = ldr_2 = 0;
+}
+
+int main(void)
+{	
+	int state = 0;
+	int temperature;
+	int ldr_diff;
+	init();
 
 	while(1)
 	{
@@ -380,12 +400,11 @@ int main(void)
 		}
 		if(state)
 		{
-			// we no longer need to read the adc values as we receive the ldr diff from the arduino
-			//ldr_1 = adc_read(2); // left
-			//ldr_2 = adc_read(3); // right
-			//temperature = adc_read(4);
-			//print_aqc2_status(ldr_1,ldr_2,temperature,state);
-			//state = solar_tracker(ldr_1, ldr_2, state, temperature);
+			temperature = adc_read(4);
+			ldr_diff = get_ldr_diff();
+			print_aqc2_status(ldr_diff, temperature, state);
+			state = solar_tracker(ldr_diff, state, temperature);
+			counter++;
 		}			
 	}
 }
